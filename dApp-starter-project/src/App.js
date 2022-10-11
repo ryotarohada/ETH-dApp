@@ -10,9 +10,11 @@ const App = () => {
   const [messageValue, setMessageValue] = useState("");
   const [allWaves, setAllWaves] = useState([]);
   const [contractBalanceValue, setContractBalanceValue] = useState(0)
-  const [failWaveInfoData, setFailWaveInfoData] = useState({ fail: false, timestanp: "" })
+  const [isFailWave, setIsFailWave] = useState(false)
+  const [isUserGetEth, setIsUserGetEth] = useState({init: true, isGetEth: false})
+  const [isMining, setIsMining] = useState(false)
 
-  const contractAddress = "0x422DA4897BEC62EE55c0E57ecc248cE0495d94C4"
+  const contractAddress = "0x2828BDFE8D4749DB4df3a6571C4C5cc65cFB93d2"
   const contractABI = abi.abi;
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   const signer = provider.getSigner();
@@ -37,6 +39,10 @@ const App = () => {
     setAllWaves(wavesCleaned);
   };
 
+  const onCheckLastWavedAt = () => {
+    setIsFailWave(true)
+  }
+
   /**
    * `emit`されたイベントをフロントエンドに反映させる
    */
@@ -54,20 +60,13 @@ const App = () => {
       ]);
     };
 
-    const onCheckLastWavedAt = (timestamp) => {
-      console.log("CheckLastWavedAtEvent", timestamp)
-      setFailWaveInfoData({ fail: true, timestanp: timestamp })
-    }
-
     if (window.ethereum) {
       wavePortalContract.on("NewWave", onNewWave);
-      wavePortalContract.on("CheckLastWavedAtEvent", onCheckLastWavedAt);
     }
 
     return () => {
       if (wavePortalContract) {
         wavePortalContract.off("NewWave", onNewWave);
-        wavePortalContract.off("CheckLastWavedAtEvent", onCheckLastWavedAt);
       }
     };
   }, []);
@@ -111,20 +110,41 @@ const App = () => {
       if (window.ethereum) {
         let count = await wavePortalContract.getTotalWaves();
         console.log("Retrieved total wave count...", count.toNumber());
+        const startContractBalance = await provider.getBalance(wavePortalContract.address)
         /* コントラクトに👋（wave）を書き込む */
         const waveTxn = await wavePortalContract.wave(messageValue, {
           gasLimit: 300000,
         });
+        setIsMining(true)
         console.log("Mining...", waveTxn.hash);
         await waveTxn.wait();
         console.log("Mined -- ", waveTxn.hash);
         count = await wavePortalContract.getTotalWaves();
         console.log("Retrieved total wave count...", count.toNumber());
+        setIsMining(false)
+        let contractBalance_post = await provider.getBalance(
+          wavePortalContract.address
+        );
+        /* コントラクトの残高が減っていることを確認 */
+        if (contractBalance_post.lt(startContractBalance)) {
+          /* 減っていたら下記を出力 */
+          console.log("User won ETH!");
+          setIsUserGetEth({ init: false, isGetEth: true })
+        } else {
+          console.log("User didn't win ETH.");
+          setIsUserGetEth({ init: false, isGetEth: false })
+        }
+        console.log(
+          "Contract balance after wave:",
+          ethers.utils.formatEther(contractBalance_post)
+        );
       } else {
         console.log("Ethereum object doesn't exist!");
       }
     } catch (error) {
-      console.log(error)
+      // console.log(error)
+      onCheckLastWavedAt()
+      setIsMining(false)
     }
   };
 
@@ -182,9 +202,51 @@ const App = () => {
         )}
         {/* waveボタンにwave関数を連動 */}
         {currentAccount && (
-          <button className="waveButton" onClick={wave}>
+          <button className="waveButton" onClick={wave} disabled={isMining}>
             Wave at Me
           </button>
+        )}
+        {/* エラー表示  */}
+        {(currentAccount && isFailWave) && (
+          <div 
+          style={{
+            backgroundColor: "#F8F8FF",
+            marginTop: "16px",
+            padding: "8px",
+          }}>
+            <p>
+              スマートコントラクト実行中にエラーが発生しました。<br/>
+              次の送信まで3分ほど待つ必要があります。
+              <button onClick={() => setIsFailWave(false)}>閉じる</button>
+            </p>
+          </div>
+        )}
+        {/* 抽選結果表示  */}
+        {(currentAccount && !isUserGetEth.init) && (
+          <div 
+          style={{
+            backgroundColor: "#F8F8FF",
+            marginTop: "16px",
+            padding: "8px",
+          }}>
+          {isUserGetEth.isGetEth ? (
+            <p>
+              ETHをGETしました🎉
+            </p>
+            ) : (
+              <p>
+                残念...ETHは獲得できませんでした🥹<br/>
+                次は当たりますように！
+              </p>
+              )}
+            <button onClick={() => setIsUserGetEth({ init: true, isGetEth: false })}>閉じる</button>
+          </div>
+        )}
+        {/* マイニング中表示  */}
+        {isMining && (
+          <p styles={{ color: "blue" }}>
+            マイニング中...
+          </p>
         )}
         {/* メッセージボックスを実装*/}
         {currentAccount && (
