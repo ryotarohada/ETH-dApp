@@ -145,6 +145,7 @@ const App = () => {
       // console.log(error)
       onCheckLastWavedAt()
       setIsMining(false)
+      console.log("Failed Mining.");
     }
   };
 
