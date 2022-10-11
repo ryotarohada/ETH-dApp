@@ -1,25 +1,49 @@
 // run.js
 const main = async () => {
-    const [owner, randomPerson] = await hre.ethers.getSigners();
     const waveContractFactory = await hre.ethers.getContractFactory("WavePortal");
-    const waveContract = await waveContractFactory.deploy();
-    const wavePortal = await waveContract.deployed();
+    /*
+     * デプロイする際0.1ETHをコントラクトに提供する
+     */
+    const waveContract = await waveContractFactory.deploy({
+      value: hre.ethers.utils.parseEther("0.1"),
+    });
+    await waveContract.deployed();
+    console.log("Contract deployed to: ", waveContract.address);
   
-    console.log("Contract deployed to:", wavePortal.address);
-    console.log("Contract deployed by:", owner.address);
+    /*
+     * コントラクトの残高を取得（0.1ETH）であることを確認
+     */
+    let contractBalance = await hre.ethers.provider.getBalance(
+      waveContract.address
+    );
+    console.log(
+      "Contract balance:",
+      hre.ethers.utils.formatEther(contractBalance)
+    );
   
-    let waveCount;
-    waveCount = await waveContract.getTotalWaves();
-  
-    let waveTxn = await waveContract.wave();
+    /*
+     * 2回 waves を送るシミュレーションを行う
+     */
+    const waveTxn = await waveContract.wave("This is wave #1");
     await waveTxn.wait();
   
-    waveCount = await waveContract.getTotalWaves();
+    const waveTxn2 = await waveContract.wave("This is wave #2");
+    await waveTxn2.wait();
   
-    waveTxn = await waveContract.connect(randomPerson).wave();
-    await waveTxn.wait();
+    /*
+     * コントラクトの残高を取得し、Waveを取得した後の結果を出力
+     */
+    contractBalance = await hre.ethers.provider.getBalance(waveContract.address);
+    /*
+     *コントラクトの残高から0.0001ETH引かれていることを確認
+     */
+    console.log(
+      "Contract balance:",
+      hre.ethers.utils.formatEther(contractBalance)
+    );
   
-    waveCount = await waveContract.getTotalWaves();
+    let allWaves = await waveContract.getAllWaves();
+    console.log(allWaves);
   };
   
   const runMain = async () => {
